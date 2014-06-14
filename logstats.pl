@@ -8,7 +8,6 @@ use common::sense;
 use feature qw/say/;
 
 use Carp;
-use Data::Dumper;
 use DateTime;
 use Data::Section -setup;
 
@@ -64,18 +63,6 @@ sub self_test {
 			foreach split("\n", $$data_ok);
 		my %test_res = %{ eval $$data_res };
 		is_deeply( \%test, \%test_res, $data_ok_section );
-	}
-
-	foreach my $data_ok_section ( sort grep { /^NEG_/ } __PACKAGE__->section_data_names() ) {
-		my $data_ok = __PACKAGE__->section_data( $data_ok_section );
-		my $res_section = $data_ok_section;
-		$res_section =~ s/NEG/NEGRES/;
-		my $data_res = __PACKAGE__->section_data( $res_section );
-		my %test;
-		parse_oneline( $_, \%conf, \%test)
-			foreach split("\n", $$data_ok);
-		my %test_res = %{ eval $$data_res };
-		isnt( \%test, \%test_res, $data_ok_section );
 	}
 	exit;
 }

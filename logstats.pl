@@ -115,6 +115,29 @@ sub parse_oneline {
 			|| $conf->{top10ipdetails};
 	$stats->{top10ipdetails}{ $m{ip} }{$m{url} }++
 		if $conf->{top10ipdetails};
+	if ( $conf->{perminute}
+		&& $conf->{start_time} && $conf->{stop_time} ) {
+		$m{dt} =~ m/
+			(?<day>\d{2})
+			\/
+			(?<month>[^\d]+)
+			\/
+			(?<year>\d{4})
+			:
+			(?<hour>\d{2})
+			:
+			(?<minute>\d{2})
+		/isx;
+		my %cur_time;
+		@cur_time{qw/year day month hour minute/} =
+			@+{qw/year day month hour minute/};
+		#Take care of month abbrevation
+		$cur_time{month} = $conf->{month_abbr}{ lc($cur_time{month}) };
+		my $cur_time_dt = DateTime->new( %cur_time );
+		$stats->{perminute}{ $cur_time_dt->datetime() }++
+			if $cur_time_dt >= $conf->{start_time}
+				&& $cur_time_dt <= $conf->{stop_time};
+	}
 }
 
 sub get_conf {
@@ -135,8 +158,24 @@ sub get_conf {
 	if ($main::perminute) {
 		my ($t_start, $t_stop) = split('-', $main::perminute);
 		$conf{perminute} = 1;
-		$conf{start_time} = DateTime->new($t_start);
-		$conf{stop_time} = DateTime->new($t_stop);
+		my $timesplitter = qr/
+			(?<year>\d{4})
+			(?<month>\d{2})
+			(?<day>\d{2})
+			(?<hour>\d{2})
+			(?<minute>\d{2})
+		/isx;
+		my %m;
+		$t_start =~ $timesplitter;
+		@m{qw/year month day hour minute/} =
+			@+{qw/year month day hour minute/};
+		$conf{start_time} = DateTime->new( %m )
+			if keys %m;
+		$t_stop =~ $timesplitter;
+		@m{qw/year month day hour minute/} =
+			@+{qw/year month day hour minute/};
+		$conf{stop_time} = DateTime->new( %+ )
+			if keys %m;
 	}
 	# Pre-compile regular expression
 	$conf{line_re} = qr/
@@ -162,14 +201,15 @@ sub get_conf {
 		(?P<size>\d+)
 	/isx;
 	$conf{retcode_ok} = qr/^[23]/isx;
+	%{ $conf{month_abbr} } = qw/ jan 1 feb 2 mar 3 apr 4 may 5 jun 6 jul 7
+aug 8 sep 9 oct 10 nov 11 dec 12/;
 	return wantarray ? %conf : \%conf;
 }
 
 ### MAIN
 sub run {
 	%conf = get_conf();
-	say Dumper(\%conf);
-	exit;
+
 	{
 		no warnings;
 		# Show help if requested
@@ -237,6 +277,16 @@ sub run {
 			say;
 		}
 	}
+
+	if ($conf{perminute}) {
+		say "######################";
+		say "Per-minute hit stats: ";
+		say "######################";
+		foreach my $dt ( sort keys %{ $stats{perminute} }) {
+			say $stats{perminute}{$dt}, "\t", $dt;
+		}
+	}
+
 
 	exit();
 }
